@@ -1,1 +1,17 @@
+🔴 Team/governance risk
 
+“The project brief specifies three students, while our current team allocation is two. We've treated this as a governance risk and need written clarification about how the two-reviewer requirement applies.”
+
+IMPORTANT: Don't claim this is officially approved unless you have evidence.
+
+🔴 Scope creep
+
+“Additional features could consume time and reduce the time available for testing and security.”
+
+🔴 Security/privacy
+
+“Service requests may contain personal or sensitive information, so inappropriate access is a significant risk.”
+
+🔴 Schedule pressure
+
+“We don't want schedule pressure to result in silently reducing testing or security.”
