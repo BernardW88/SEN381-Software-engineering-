@@ -1,1 +1,16 @@
+## M1 Required Outputs and Evidence
 
+| Required Output | M1 Expectation | Evidence to Present |
+|---|---|---|
+| **Problem & Business Need** | Concise CivicConnect-specific analysis of the problem and intended stakeholder/business value; do not rewrite the scenario. | PED section linked to stakeholder needs. |
+| **Stakeholder Analysis** | Identify relevant stakeholders, needs, influence/interest, and meaningful conflicts or competing expectations. | Stakeholder artefact plus examples of requirements derived from it. |
+| **Scope Baseline** | Explicit in-scope, out-of-scope, and deferred/future scope. | Controlled scope statement; defend at least one deliberate exclusion/deferment. |
+| **Requirements & Acceptance Criteria** | Prioritised functional requirements and measurable non-functional requirements with unique IDs, sources, and appropriate acceptance criteria. | PED requirements; demonstrate examples of testable FRs/NFRs. |
+| **Constraints** | Record and analyse scope, schedule, cost/resources, quality, and security constraints and their engineering implications. | Constraint evidence; explain at least one interaction/trade-off or ripple effect. |
+| **Initial RTM** | Establish traceability from stakeholder/source to requirement and acceptance criteria, with structure for later design, change, test, and release evidence. | Live RTM; trace at least one requirement end-to-end for the evidence currently available. |
+| **Initial Risk Register** | Project-specific risks with probability, impact, priority, mitigation, contingency, owner, and status. | Live register; defend the highest-priority risk. |
+| **Forward Engineering Considerations** | Identify 5–7 later lifecycle concerns that require attention now, without prematurely implementing or deciding them. | Forward Engineering Considerations register/map. |
+| **Engineering Decision Log** | Create the controlled decision structure and record only genuine M1 decisions already made. Record justified deferment where evidence is not yet sufficient. | Decision log; defend one decision or deliberately deferred decision. |
+| **GitHub & Team Governance** | Establish repository and team controls in accordance with the Master Project Brief, including protected main and the required review/approval model. | Live repository/settings/project evidence. |
+| **AI Usage Register** | Establish the register and record material AI-assisted work and the human verification applied. | Live register plus verified example where AI was used. |
+| **PED v1.0 & Baseline Sign-off** | Integrate the foundation into one coherent controlled PED, review it as a team, and complete formal baseline sign-off/gate evidence. | PED v1.0, version history, and baseline gate/sign-off evidence. |
