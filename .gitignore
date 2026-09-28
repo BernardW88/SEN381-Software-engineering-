@@ -1,13 +1,43 @@
-# IDEs and Editors
+# Visual Studio / .NET
+.vs/
 .vscode/
 .idea/
 *.swp
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.vsconfig
 
-# Operating System Artifacts
-.DS_Store
-Thumbs.db
-
-# Build Artifacts
+# Build outputs
 bin/
 obj/
+artifacts/
+out/
+
+# NuGet
+*.nupkg
+packages/
+
+# Test results
+TestResults/
+*.trx
+
+# Rider
+.idea/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Others
 *.tmp
+*.cache
+*.db
+
+# Ignore Visual Studio workspace folders in subprojects
+**/.vs/
