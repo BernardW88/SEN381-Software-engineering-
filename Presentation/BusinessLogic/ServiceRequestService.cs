@@ -3,16 +3,22 @@ using Models;
 using System;
 using System.Collections.Generic;
 using BusinessLogic.Infrastructure;
+using BusinessLogic.Infrastructure.DomainEvents;
 
 namespace BusinessLogic
 {
     public class ServiceRequestService
     {
         private readonly IServiceRequestRepository _requestRepository;
+        private readonly IDomainEventPublisher _eventPublisher;
 
-        public ServiceRequestService(IServiceRequestRepository requestRepository = null)
+        public ServiceRequestService(
+            IServiceRequestRepository requestRepository = null,
+            IDomainEventPublisher eventPublisher = null)
         {
             _requestRepository = requestRepository ?? new ServiceRequestRepository();
+            _eventPublisher = eventPublisher ?? new InMemoryDomainEventPublisher();
+            _eventPublisher.Subscribe(new StatusChangeAuditHandler());
         }
 
         public List<ServiceRequest> GetFilteredRequests(string search, string category, string status)
@@ -89,6 +95,13 @@ namespace BusinessLogic
                 bool result = _requestRepository.UpdateRequestStatus(requestId, targetStatus, currentUser ?? "System");
                 if (!result)
                     ErrorHandler.LogError($"AdvanceRequestStatus failed to update repository for requestId={requestId} (user={currentUser})");
+                else
+                    _eventPublisher.Publish(new ServiceRequestStatusChangedEvent(
+                        requestId,
+                        currentStatus,
+                        targetStatus,
+                        currentUser ?? "System",
+                        DateTime.UtcNow));
                 return result;
             }
             catch (Exception ex)
