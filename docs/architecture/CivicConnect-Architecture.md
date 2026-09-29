@@ -7,13 +7,22 @@ Business Logic, Data Access and Database layers.
 
 ## Architecture Structure
 
-Presentation Layer
-↓
-Business Logic Layer
-↓
-Data Access Layer
-↓
-SQL Server LocalDB
+```mermaid
+flowchart TD
+    A[Presentation Layer<br/>Windows Forms] --> B[Business Logic Layer]
+    B --> C[Data Access Layer]
+    C --> D[(SQL Server LocalDB)]
+
+    B --> B1[ServiceRequestService]
+    B --> B2[UserService]
+    B --> B3[Notifications]
+    B --> B4[Escalation]
+
+    C --> C1[IServiceRequestRepository]
+    C --> C2[ServiceRequestRepository]
+    C --> C3[IUserRepository]
+    C --> C4[UserRepository]
+    C --> C5[DatabaseConnection]
 
 ## Presentation Layer
 
