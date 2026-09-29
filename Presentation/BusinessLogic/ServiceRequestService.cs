@@ -2,6 +2,7 @@
 using Models;
 using System;
 using System.Collections.Generic;
+using BusinessLogic.Infrastructure;
 
 namespace BusinessLogic
 {
@@ -63,15 +64,38 @@ namespace BusinessLogic
         public bool AdvanceRequestStatus(int requestId, string currentStatus, string targetStatus, string currentUser)
         {
             if (requestId <= 0)
+            {
+                ErrorHandler.LogWarning($"AdvanceRequestStatus called with invalid requestId={requestId} (user={currentUser})");
                 throw new ArgumentException("Invalid service request selected.");
+            }
+
+            // Verify the request exists
+            var existing = GetRequestById(requestId);
+            if (existing == null)
+            {
+                ErrorHandler.LogWarning($"AdvanceRequestStatus: request not found id={requestId} (user={currentUser})");
+                throw new ArgumentException("Service request not found.");
+            }
 
             // Enforce valid lifecycle state progression rules
             if (!IsValidStateTransition(currentStatus, targetStatus))
             {
+                ErrorHandler.LogWarning($"Invalid state transition attempted for requestId={requestId} from '{currentStatus}' to '{targetStatus}' (user={currentUser})");
                 throw new InvalidOperationException($"Invalid status transition! Cannot change request state directly from '{currentStatus}' to '{targetStatus}'.");
             }
 
-            return _requestRepository.UpdateRequestStatus(requestId, targetStatus, currentUser ?? "System");
+            try
+            {
+                bool result = _requestRepository.UpdateRequestStatus(requestId, targetStatus, currentUser ?? "System");
+                if (!result)
+                    ErrorHandler.LogError($"AdvanceRequestStatus failed to update repository for requestId={requestId} (user={currentUser})");
+                return result;
+            }
+            catch (Exception ex)
+            {
+                ErrorHandler.LogError($"AdvanceRequestStatus exception for requestId={requestId}: {ex.Message} (user={currentUser})");
+                throw;
+            }
         }
 
         private bool IsValidStateTransition(string current, string target)
