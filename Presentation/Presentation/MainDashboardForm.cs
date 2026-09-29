@@ -10,6 +10,8 @@ namespace Presentation
     {
         private readonly ServiceRequestService _requestService = new ServiceRequestService();
         private readonly User _currentUser;
+        private readonly BusinessLogic.Notifications.NotificationService _notificationService;
+        private readonly BusinessLogic.Escalation.EscalationService _escalationService;
 
         private Label lblUserInfo;
         private Label lblStats;
@@ -29,6 +31,17 @@ namespace Presentation
         {
             InitializeComponent();
             _currentUser = user ?? new User { Username = "Guest", Role = "Citizen" };
+            // Initialize supporting services used by the UI.
+            _notificationService = new BusinessLogic.Notifications.NotificationService(new BusinessLogic.Notifications.INotificationStrategy[] {
+                new BusinessLogic.Notifications.InAppNotificationStrategy(),
+                new BusinessLogic.Notifications.EmailNotificationStrategy()
+            });
+
+            _escalationService = new BusinessLogic.Escalation.EscalationService(new BusinessLogic.Escalation.IEscalationStrategy[] {
+                new BusinessLogic.Escalation.ImmediateEscalationStrategy(),
+                new BusinessLogic.Escalation.TimeBasedEscalationStrategy()
+            });
+
             BuildDashboardUI();
             this.Load += MainDashboardForm_Load;
         }
@@ -109,6 +122,21 @@ namespace Presentation
             cmbPriority.SelectedIndex = 1;
 
             RefreshDashboard();
+
+            // Run a quick escalation pass on load to ensure stale or critical requests are marked.
+            try
+            {
+                var all = _requestService.GetFilteredRequests("", "All Categories", "All Statuses");
+                bool anyEscalated = false;
+                foreach (var r in all)
+                {
+                    anyEscalated |= _escalationService.RunEscalationFor(r);
+                }
+
+                if (anyEscalated)
+                    RefreshDashboard();
+            }
+            catch { /* Keep UI resilient if escalation/init fails */ }
         }
 
         private void RefreshDashboard()
@@ -159,13 +187,25 @@ namespace Presentation
         {
             try
             {
-                if (_requestService.CreateNewRequest(txtTitle.Text, cmbCategory.SelectedItem?.ToString(), txtLocation.Text, "", cmbPriority.SelectedItem?.ToString(), _currentUser.Username))
+                var created = _requestService.CreateNewRequest(txtTitle.Text, cmbCategory.SelectedItem?.ToString(), txtLocation.Text, "", cmbPriority.SelectedItem?.ToString(), _currentUser.Username);
+                if (created != null)
                 {
                     MessageBox.Show("Service request logged successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     txtTitle.Clear();
                     txtLocation.Clear();
                     cmbCategory.SelectedIndex = 0;
                     RefreshDashboard();
+
+                    // Notify relevant parties about the new request (UI and email by default)
+                    try
+                    {
+                        _notificationService.NotifyAll(created, $"New service request submitted: {created.Title}", _currentUser.Username ?? "system");
+                    }
+                    catch { }
+                }
+                else
+                {
+                    MessageBox.Show("Failed to create service request.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
@@ -197,8 +237,17 @@ namespace Presentation
             {
                 if (_requestService.AdvanceRequestStatus(selected.RequestID, selected.Status, targetStatus, _currentUser.Username))
                 {
+                    // Get the updated record and notify
+                    var updated = _requestService.GetRequestById(selected.RequestID);
                     MessageBox.Show($"Request '{selected.Title}' status advanced to '{targetStatus}'!", "Status Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     RefreshDashboard();
+
+                    try
+                    {
+                        if (updated != null)
+                            _notificationService.NotifyAll(updated, $"Request '{updated.Title}' status changed to {updated.Status}", _currentUser.Username ?? "system");
+                    }
+                    catch { }
                 }
             }
             catch (Exception ex)

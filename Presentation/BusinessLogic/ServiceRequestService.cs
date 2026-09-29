@@ -19,7 +19,7 @@ namespace BusinessLogic
             return _requestRepository.SearchRequests(search ?? "", category ?? "All Categories", status ?? "All Statuses");
         }
 
-        public bool CreateNewRequest(string title, string category, string location, string description, string priority, string currentUser)
+        public ServiceRequest CreateNewRequest(string title, string category, string location, string description, string priority, string currentUser)
         {
             if (string.IsNullOrWhiteSpace(title))
                 throw new ArgumentException("Service request title is required.");
@@ -42,7 +42,21 @@ namespace BusinessLogic
                 LastModifiedBy = currentUser ?? "System"
             };
 
-            return _requestRepository.AddRequest(request);
+            bool added = _requestRepository.AddRequest(request);
+            if (!added) return null;
+
+            // Attempt to locate the newly created request in the repository.
+            // We use a best-effort strategy: match by title and location and take the most recently created.
+            var all = _requestRepository.GetAllRequests();
+            ServiceRequest created = all.FindLast(r => r.Title == request.Title && r.Location == request.Location);
+            return created;
+        }
+
+        public ServiceRequest GetRequestById(int id)
+        {
+            if (id <= 0) return null;
+            var all = _requestRepository.GetAllRequests();
+            return all.Find(r => r.RequestID == id);
         }
 
         // M2 Design Pattern Implementation: Lifecycle State Control Strategy
