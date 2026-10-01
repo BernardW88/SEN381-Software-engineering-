@@ -2,6 +2,7 @@
 using Models;
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
 namespace Presentation
@@ -21,6 +22,11 @@ namespace Presentation
         private DataGridView dgvRequests;
         private ContextMenuStrip _gridContextMenu;
         private ToolTip _toolTip;
+        private Panel filterPanel;
+        private GroupBox gbNew;
+        private GroupBox gbActions;
+        private Panel pnlMetricCards;
+        private Button btnExportCsv;
 
         private TextBox txtTitle;
         private TextBox txtLocation;
@@ -59,8 +65,20 @@ namespace Presentation
             lblUserInfo = new Label { Location = new Point(18, 12), AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
             lblStats = new Label { Location = new Point(18, 34), AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Italic), ForeColor = Color.FromArgb(30, 144, 255) };
 
+            // Metric cards
+            pnlMetricCards = new Panel { Location = new Point(12, 12), Size = new Size(960, 40), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+            // create 4 simple cards
+            var cardWidth = 230;
+            var spacing = 10;
+            var p1 = CreateMetricCard("Total", new Point(0, 0));
+            var p2 = CreateMetricCard("Pending", new Point(cardWidth + spacing, 0));
+            var p3 = CreateMetricCard("In Progress", new Point((cardWidth + spacing) * 2, 0));
+            var p4 = CreateMetricCard("Resolved", new Point((cardWidth + spacing) * 3, 0));
+            pnlMetricCards.Controls.AddRange(new Control[] { p1, p2, p3, p4 });
+            this.Controls.Add(pnlMetricCards);
+
             // Top filter panel
-            Panel filterPanel = new Panel { Location = new Point(12, 60), Size = new Size(960, 46) };
+            filterPanel = new Panel { Location = new Point(12, 60), Size = new Size(960, 46) };
 
             Label lblSearch = new Label { Text = "Search:", Location = new Point(6, 12), AutoSize = true };
             txtSearch = new TextBox { Location = new Point(60, 8), Width = 220 };
@@ -79,6 +97,9 @@ namespace Presentation
             Button btnClearFilters = new Button { Text = "Clear", Location = new Point(750, 6), Width = 70, Height = 28, FlatStyle = FlatStyle.System };
             btnClearFilters.Click += (s, e) => { txtSearch.Clear(); cmbFilterCategory.SelectedIndex = 0; cmbFilterStatus.SelectedIndex = 0; };
 
+            // smaller top-right action buttons
+            // top-right action buttons removed per request
+
             filterPanel.Controls.AddRange(new Control[] { lblSearch, txtSearch, lblFilterCat, cmbFilterCategory, lblFilterStat, cmbFilterStatus, btnClearFilters });
 
             // Grid
@@ -95,9 +116,15 @@ namespace Presentation
                 BorderStyle = BorderStyle.FixedSingle
             };
             dgvRequests.CellDoubleClick += DgvRequests_CellDoubleClick;
+            dgvRequests.CellMouseEnter += DgvRequests_CellMouseEnter;
+            dgvRequests.CellMouseLeave += DgvRequests_CellMouseLeave;
+            dgvRequests.MouseLeave += (s, e) => HideHoverPreview();
+            // Improve readability for demo
+            dgvRequests.Font = new Font("Segoe UI", 10F);
+            dgvRequests.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
 
             // Form Entry Group
-            GroupBox gbNew = new GroupBox { Text = "Submit New Request", Location = new Point(12, 462), Size = new Size(640, 140) };
+            gbNew = new GroupBox { Text = "Submit New Request", Location = new Point(12, 462), Size = new Size(640, 140) };
 
             Label lblAddTitle = new Label { Text = "Title:", Location = new Point(12, 28), AutoSize = true };
             txtTitle = new TextBox { Location = new Point(60, 24), Width = 260 };
@@ -117,15 +144,19 @@ namespace Presentation
             gbNew.Controls.AddRange(new Control[] { lblAddTitle, txtTitle, lblAddCat, cmbCategory, lblAddLoc, txtLocation, lblAddPrio, cmbPriority, btnSubmitRequest });
 
             // Actions Group
-            GroupBox gbActions = new GroupBox { Text = "Actions", Location = new Point(664, 462), Size = new Size(308, 140) };
+            gbActions = new GroupBox { Text = "Actions", Location = new Point(664, 462), Size = new Size(308, 140) };
             btnAdvanceStatus = new Button { Text = "Update Status", Location = new Point(12, 24), Width = 140, Height = 32, BackColor = Color.FromArgb(255,140,0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnAdvanceStatus.Click += BtnAdvanceStatus_Click;
             Button btnNotifyNow = new Button { Text = "Notify Selected", Location = new Point(12, 64), Width = 140, Height = 32, BackColor = Color.FromArgb(30,144,255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnNotifyNow.Click += (s, e) => NotifySelected();
             Button btnEscalateNow = new Button { Text = "Escalate Selected", Location = new Point(158, 24), Width = 140, Height = 32, BackColor = Color.FromArgb(255,140,0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnEscalateNow.Click += (s, e) => EscalateSelected();
+            Button btnSeed = new Button { Text = "Seed Sample Data", Location = new Point(158, 64), Width = 140, Height = 32, FlatStyle = FlatStyle.System };
+            btnSeed.Click += (s, e) => SeedSampleData();
+            Button btnViewLogs = new Button { Text = "View Logs", Location = new Point(12, 100), Width = 286, Height = 28, FlatStyle = FlatStyle.System };
+            btnViewLogs.Click += (s, e) => ShowLogViewer();
 
-            gbActions.Controls.AddRange(new Control[] { btnAdvanceStatus, btnNotifyNow, btnEscalateNow });
+            gbActions.Controls.AddRange(new Control[] { btnAdvanceStatus, btnNotifyNow, btnEscalateNow, btnSeed, btnViewLogs, btnExportCsv });
 
             // Add to form
             this.Controls.AddRange(new Control[] { lblUserInfo, lblStats, filterPanel, dgvRequests, gbNew, gbActions });
@@ -135,6 +166,14 @@ namespace Presentation
             _toolTip.SetToolTip(txtSearch, "Type to filter requests by title, location or description");
             _toolTip.SetToolTip(btnSubmitRequest, "Validate and submit a new service request");
             _toolTip.SetToolTip(btnAdvanceStatus, "Advance the selected request to the next logical status");
+
+            // Hover preview init
+            InitializeHoverPreview();
+
+            // Apply modern styling (theme, button styles, grid polish)
+            ApplyModernStyling();
+            // Ensure hover panel is above other controls
+            _hoverPanel.BringToFront();
         }
 
         private void InitializeGridContextMenu()
@@ -203,6 +242,15 @@ namespace Presentation
                     RefreshDashboard();
             }
             catch { /* Keep UI resilient if escalation/init fails */ }
+
+            // Position top-right controls so they remain visible regardless of overlapping panels
+            try
+            {
+                int margin = 12;
+                pnlMetricCards.Width = Math.Max(300, this.ClientSize.Width - (margin * 2));
+                _hoverPanel?.BringToFront();
+            }
+            catch { }
         }
 
         private void RefreshDashboard()
@@ -217,6 +265,7 @@ namespace Presentation
 
                 var (total, pending, inProgress, resolved) = _requestService.GetDashboardMetrics();
                 lblStats.Text = $"CivicConnect Metrics: {total} Total Requests | {pending} Pending Triage | {inProgress} In Progress | {resolved} Resolved/Closed";
+                UpdateMetricCards(total, pending, inProgress, resolved);
             }
             catch (Exception ex)
             {
@@ -316,41 +365,357 @@ namespace Presentation
 
             ServiceRequest selected = (ServiceRequest)dgvRequests.SelectedRows[0].DataBoundItem;
 
-            // Simple status selector dialog prompt
-            string targetStatus = selected.Status switch
+            // Ask the service for valid next canonical statuses
+            var options = _requestService.GetValidNextStatuses(selected.Status);
+            if (options == null || options.Count == 0)
             {
-                "Submitted" => "In Progress",
-                "In Progress" => "Resolved",
-                "Resolved" => "Closed",
-                _ => "Closed"
-            };
-
-            try
-            {
-                if (_requestService.AdvanceRequestStatus(selected.RequestID, selected.Status, targetStatus, _currentUser.Username))
-                {
-                    // Get the updated record and notify
-                    var updated = _requestService.GetRequestById(selected.RequestID);
-                    MessageBox.Show($"Request '{selected.Title}' status advanced to '{targetStatus}'!", "Status Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    RefreshDashboard();
-
-                    try
-                    {
-                        if (updated != null)
-                            _notificationService.NotifyAll(updated, $"Request '{updated.Title}' status changed to {updated.Status}", _currentUser.Username ?? "system");
-                    }
-                    catch { }
-                }
+                MessageBox.Show("No further status transitions available for the selected request.", "No Actions", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            catch (Exception ex)
+
+            using (var picker = new StatusPickerForm(selected.Status, options))
             {
-                MessageBox.Show(ex.Message, "State Machine Violation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                var dr = picker.ShowDialog(this);
+                if (dr != DialogResult.OK || string.IsNullOrWhiteSpace(picker.SelectedStatus)) return;
+
+                string targetStatus = picker.SelectedStatus;
+                try
+                {
+                    if (_requestService.AdvanceRequestStatus(selected.RequestID, selected.Status, targetStatus, _currentUser.Username))
+                    {
+                        // Get the updated record and notify
+                        var updated = _requestService.GetRequestById(selected.RequestID);
+                        MessageBox.Show($"Request '{selected.Title}' status advanced to '{targetStatus}'!", "Status Updated", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        RefreshDashboard();
+
+                        try
+                        {
+                            if (updated != null)
+                                _notificationService.NotifyAll(updated, $"Request '{updated.Title}' status changed to {updated.Status}", _currentUser.Username ?? "system");
+                        }
+                        catch { }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message, "State Machine Violation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
         }
 
         private void DgvRequests_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             ShowSelectedDetails();
+        }
+
+        private void DgvRequests_CellMouseEnter(object sender, DataGridViewCellEventArgs e)
+        {
+            try
+            {
+                if (e.RowIndex < 0) return;
+                var row = dgvRequests.Rows[e.RowIndex];
+                if (row?.DataBoundItem is ServiceRequest r)
+                {
+                    // compute location just below the cell
+                    var cellRect = dgvRequests.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, true);
+                    var screenPoint = dgvRequests.PointToScreen(new Point(cellRect.Left, cellRect.Bottom));
+                    var clientPoint = this.PointToClient(screenPoint);
+                    ShowHoverPreview(r, clientPoint);
+                }
+            }
+            catch { }
+        }
+
+        private void DgvRequests_CellMouseLeave(object sender, DataGridViewCellEventArgs e)
+        {
+            try
+            {
+                HideHoverPreview();
+            }
+            catch { }
+        }
+
+        // Hover preview panel and animation
+        private Panel _hoverPanel;
+        private Label _hoverTitleLabel;
+        private Label _hoverBodyLabel;
+        private System.Windows.Forms.Timer _hoverTimer;
+        private int _hoverTargetHeight = 0;
+        private bool _hoverExpanding = false;
+        private ServiceRequest _hoveredRequest = null;
+
+        private void InitializeHoverPreview()
+        {
+            _hoverPanel = new Panel
+            {
+                Size = new Size(360, 0),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                Visible = false
+            };
+
+            _hoverTitleLabel = new Label { Location = new Point(8, 6), AutoSize = false, Size = new Size(340, 20), Font = new Font("Segoe UI", 9F, FontStyle.Bold) };
+            _hoverBodyLabel = new Label { Location = new Point(8, 28), AutoSize = false, Size = new Size(340, 80), Font = new Font("Segoe UI", 8F), ForeColor = Color.DimGray };
+
+            _hoverPanel.Controls.Add(_hoverTitleLabel);
+            _hoverPanel.Controls.Add(_hoverBodyLabel);
+            this.Controls.Add(_hoverPanel);
+
+            _hoverTimer = new System.Windows.Forms.Timer { Interval = 12 };
+            _hoverTimer.Tick += HoverTimer_Tick;
+        }
+
+        private void HoverTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                int step = 12;
+                if (_hoverExpanding)
+                {
+                    if (_hoverPanel.Height < _hoverTargetHeight)
+                    {
+                        _hoverPanel.Height = Math.Min(_hoverPanel.Height + step, _hoverTargetHeight);
+                    }
+                    else
+                    {
+                        _hoverTimer.Stop();
+                    }
+                }
+                else
+                {
+                    if (_hoverPanel.Height > 0)
+                    {
+                        _hoverPanel.Height = Math.Max(0, _hoverPanel.Height - step);
+                    }
+                    else
+                    {
+                        _hoverTimer.Stop();
+                        _hoverPanel.Visible = false;
+                        _hoveredRequest = null;
+                    }
+                }
+            }
+            catch { _hoverTimer.Stop(); }
+        }
+
+        private void ShowHoverPreview(ServiceRequest r, Point clientLocation)
+        {
+            if (r == null) return;
+            _hoveredRequest = r;
+            _hoverTitleLabel.Text = r.Title;
+            var body = $"Category: {r.Category}  |  Priority: {r.Priority}\nLocation: {r.Location}\nStatus: {r.Status}";
+            _hoverBodyLabel.Text = body;
+
+            // position panel near the mouse but keep inside form bounds
+            int x = clientLocation.X + 16;
+            int y = clientLocation.Y + 16;
+            if (x + _hoverPanel.Width > this.ClientSize.Width) x = this.ClientSize.Width - _hoverPanel.Width - 8;
+            if (y + 160 > this.ClientSize.Height) y = clientLocation.Y - 160;
+            if (y < 0) y = 8;
+
+            _hoverPanel.Location = new Point(x, y);
+            _hoverPanel.Height = 0;
+            _hoverTargetHeight = 120;
+            _hoverPanel.Visible = true;
+            _hoverExpanding = true;
+            _hoverTimer.Start();
+        }
+
+        private void HideHoverPreview()
+        {
+            _hoverExpanding = false;
+            _hoverTimer.Start();
+        }
+
+        private Panel CreateMetricCard(string title, Point location)
+        {
+            var p = new Panel { Size = new Size(230, 36), Location = location, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+            var lblTitle = new Label { Text = title, Location = new Point(8, 4), AutoSize = true, Font = new Font("Segoe UI", 8, FontStyle.Regular) };
+            var lblValue = new Label { Name = "_val", Text = "0", Location = new Point(8, 16), AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Color.FromArgb(30,144,255) };
+            p.Controls.Add(lblTitle);
+            p.Controls.Add(lblValue);
+            return p;
+        }
+
+        private void UpdateMetricCards(int total, int pending, int inProgress, int resolved)
+        {
+            try
+            {
+                if (pnlMetricCards == null) return;
+                if (pnlMetricCards.Controls.Count >= 4)
+                {
+                    pnlMetricCards.Controls[0].Controls["_val"].Text = total.ToString();
+                    pnlMetricCards.Controls[1].Controls["_val"].Text = pending.ToString();
+                    pnlMetricCards.Controls[2].Controls["_val"].Text = inProgress.ToString();
+                    pnlMetricCards.Controls[3].Controls["_val"].Text = resolved.ToString();
+                }
+            }
+            catch { }
+        }
+
+        private void ApplyModernStyling()
+        {
+            try
+            {
+                var primary = Color.FromArgb(30, 144, 255);
+                var accent = Color.FromArgb(255, 140, 0);
+                if (Theme.IsDark)
+                {
+                    this.BackColor = Color.FromArgb(30, 34, 40);
+                }
+                else
+                {
+                    this.BackColor = Color.FromArgb(245, 247, 250);
+                }
+
+                // DataGridView modern look
+                dgvRequests.EnableHeadersVisualStyles = false;
+                dgvRequests.ColumnHeadersDefaultCellStyle.BackColor = primary;
+                dgvRequests.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+                dgvRequests.ColumnHeadersHeight = 36;
+                dgvRequests.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+                dgvRequests.GridColor = Color.FromArgb(220, 220, 220);
+                dgvRequests.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+                dgvRequests.DefaultCellStyle.SelectionBackColor = Color.FromArgb(220, 235, 255);
+                dgvRequests.DefaultCellStyle.SelectionForeColor = Color.Black;
+                dgvRequests.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 250, 252);
+                dgvRequests.BackgroundColor = Color.White;
+                dgvRequests.RowTemplate.Height = 28;
+
+                // Style all buttons consistently
+                StyleButtons(this);
+
+                // Ensure labels and text controls are themed correctly
+                try { Theme.ApplyTheme(this, Theme.IsDark); } catch { }
+
+                // Apply rounded corners to the main form and panels
+                SetRoundedRegion(this, 12);
+
+                // Style metric cards
+                if (pnlMetricCards != null && pnlMetricCards.Controls.Count >= 4)
+                {
+                    var p0 = pnlMetricCards.Controls[0];
+                    var p1 = pnlMetricCards.Controls[1];
+                    var p2 = pnlMetricCards.Controls[2];
+                    var p3 = pnlMetricCards.Controls[3];
+
+                    p0.BackColor = primary;
+                    p1.BackColor = Color.FromArgb(255, 200, 130);
+                    p2.BackColor = Color.FromArgb(70, 160, 255);
+                    p3.BackColor = Color.FromArgb(120, 200, 170);
+
+                    foreach (Control p in new Control[] { p0, p1, p2, p3 })
+                    {
+                        foreach (Control c in p.Controls)
+                        {
+                            c.ForeColor = Color.White;
+                        }
+                        SetRoundedRegion(p, 8);
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SetRoundedRegion(Control ctrl, int radius)
+        {
+            try
+            {
+                var rect = new Rectangle(0, 0, ctrl.Width, ctrl.Height);
+                using (GraphicsPath gp = new GraphicsPath())
+                {
+                    int d = radius * 2;
+                    gp.AddArc(rect.X, rect.Y, d, d, 180, 90);
+                    gp.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+                    gp.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+                    gp.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+                    gp.CloseFigure();
+                    ctrl.Region = new Region(gp);
+                }
+            }
+            catch { }
+        }
+
+        private void StyleButtons(Control parent)
+        {
+            var primary = Color.FromArgb(30, 144, 255);
+            var accent = Color.FromArgb(255, 140, 0);
+            foreach (Control c in parent.Controls)
+            {
+                if (c is Button b)
+                {
+                    b.FlatStyle = FlatStyle.Flat;
+                    b.FlatAppearance.BorderSize = 0;
+                    b.ForeColor = Color.White;
+                    if (b.Text.IndexOf("Escalate", StringComparison.OrdinalIgnoreCase) >= 0 || b.Text.IndexOf("Update", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        b.BackColor = accent;
+                    }
+                    else if (b.Text.IndexOf("Submit", StringComparison.OrdinalIgnoreCase) >= 0 || b.Text.IndexOf("Notify", StringComparison.OrdinalIgnoreCase) >= 0 || b.Text.IndexOf("Export", StringComparison.OrdinalIgnoreCase) >= 0 || b.Text.IndexOf("Presentation", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        b.BackColor = primary;
+                    }
+                    else
+                    {
+                        b.BackColor = Color.White;
+                        b.ForeColor = primary;
+                        b.FlatAppearance.BorderSize = 1;
+                        b.FlatAppearance.BorderColor = primary;
+                    }
+                }
+
+                // Recurse
+                if (c.HasChildren) StyleButtons(c);
+            }
+        }
+
+
+        private void ExportGridToCsv()
+        {
+            try
+            {
+                if (dgvRequests.DataSource == null || dgvRequests.Rows.Count == 0)
+                {
+                    MessageBox.Show("No data to export.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                using (var sfd = new SaveFileDialog { Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*", FileName = "requests.csv" })
+                {
+                    if (sfd.ShowDialog(this) != DialogResult.OK) return;
+
+                    var sb = new System.Text.StringBuilder();
+                    // headers
+                    var cols = new List<string>();
+                    foreach (DataGridViewColumn c in dgvRequests.Columns)
+                    {
+                        if (c.Visible)
+                            cols.Add(c.HeaderText);
+                    }
+                    sb.AppendLine(string.Join(",", cols));
+
+                    foreach (DataGridViewRow row in dgvRequests.Rows)
+                    {
+                        var cells = new List<string>();
+                        foreach (DataGridViewColumn c in dgvRequests.Columns)
+                        {
+                            if (!c.Visible) continue;
+                            var val = row.Cells[c.Index].Value;
+                            var s = val == null ? "" : val.ToString().Replace("\"", "\"\"");
+                            if (s.Contains(",") || s.Contains("\n")) s = "\"" + s + "\"";
+                            cells.Add(s);
+                        }
+                        sb.AppendLine(string.Join(",", cells));
+                    }
+
+                    File.WriteAllText(sfd.FileName, sb.ToString());
+                    MessageBox.Show("Export complete.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Export failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void ShowSelectedDetails()
@@ -408,6 +773,39 @@ namespace Presentation
             catch (Exception ex)
             {
                 MessageBox.Show("Escalation failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void SeedSampleData()
+        {
+            try
+            {
+                string actor = _currentUser.Username ?? "system";
+                _requestService.CreateNewRequest("Pothole on Main St", "Pothole", "Main St", "Large pothole near the traffic light.", "High", actor);
+                _requestService.CreateNewRequest("Water outage in Block C", "Water Outage", "Block C", "No water supply since morning.", "Critical", actor);
+                _requestService.CreateNewRequest("Streetlight flickering", "Electricity", "Oak Avenue", "Intermittent streetlight at the corner.", "Medium", actor);
+                _requestService.CreateNewRequest("Missed garbage pickup", "Waste", "Pine Road", "Garbage was not collected this week.", "Low", actor);
+                RefreshDashboard();
+                MessageBox.Show("Sample data seeded successfully.", "Seed Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Seeding failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void ShowLogViewer()
+        {
+            try
+            {
+                using (var viewer = new LogViewerForm())
+                {
+                    viewer.ShowDialog(this);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not open log viewer: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
     }
