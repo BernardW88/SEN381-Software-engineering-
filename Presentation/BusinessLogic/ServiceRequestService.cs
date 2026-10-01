@@ -126,6 +126,19 @@ namespace BusinessLogic
             };
         }
 
+        // Expose valid next statuses for the UI to present choices
+        public List<string> GetValidNextStatuses(string current)
+        {
+            var candidates = new List<string> { "Submitted", "In Progress", "Resolved", "Closed" };
+            var result = new List<string>();
+            foreach (var c in candidates)
+            {
+                if (IsValidStateTransition(current, c))
+                    result.Add(c);
+            }
+            return result;
+        }
+
         // Dynamic Aggregation Metrics for Dashboard Header
         public (int Total, int Pending, int InProgress, int Resolved) GetDashboardMetrics()
         {
