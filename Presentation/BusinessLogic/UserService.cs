@@ -1,6 +1,7 @@
 ﻿using DataAccess;
 using Models;
 using System;
+using BusinessLogic.Infrastructure;
 
 namespace BusinessLogic
 {
@@ -22,13 +23,32 @@ namespace BusinessLogic
             if (string.IsNullOrWhiteSpace(password))
                 throw new ArgumentException("Password cannot be empty.");
 
-            User user = _userRepository.GetUserByCredentials(username.Trim(), password);
-            if (user == null)
+            string normalizedUsername = username.Trim();
+            UserAuthRecord authRecord = _userRepository.GetUserAuthRecord(normalizedUsername);
+            if (authRecord == null || authRecord.User == null)
             {
+                ErrorHandler.LogWarning("Authentication failed: user not found for username='" + normalizedUsername + "'");
                 throw new InvalidOperationException("Invalid username or password.");
             }
 
-            return user;
+            bool authenticated = false;
+
+            if (!string.IsNullOrWhiteSpace(authRecord.PasswordHash) && !string.IsNullOrWhiteSpace(authRecord.PasswordSalt))
+            {
+                authenticated = PasswordSecurity.VerifyPassword(password, authRecord.PasswordHash, authRecord.PasswordSalt);
+            }
+            else if (!string.IsNullOrWhiteSpace(authRecord.LegacyPassword))
+            {
+                authenticated = string.Equals(authRecord.LegacyPassword, password, StringComparison.Ordinal);
+            }
+
+            if (!authenticated)
+            {
+                ErrorHandler.LogWarning("Authentication failed: invalid password for username='" + normalizedUsername + "'");
+                throw new InvalidOperationException("Invalid username or password.");
+            }
+
+            return authRecord.User;
         }
     }
 }

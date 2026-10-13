@@ -18,7 +18,7 @@ namespace DataAccess
 
             using (SqlConnection conn = DatabaseConnection.GetConnection())
             {
-                string query = @"SELECT RequestID, Title, Category, Location, Description, Status, Priority, DateCreated, LastModifiedBy 
+                string query = @"SELECT RequestID, Title, Category, Location, Description, Status, Priority, DateCreated, UpdatedAt, LastModifiedBy 
                                  FROM ServiceRequests 
                                  WHERE (Title LIKE @Search OR Location LIKE @Search OR Description LIKE @Search)";
 
@@ -34,11 +34,11 @@ namespace DataAccess
 
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("@Search", $"%{searchTerm}%");
+                    cmd.Parameters.Add("@Search", System.Data.SqlDbType.NVarChar, 300).Value = $"%{searchTerm}%";
                     if (!string.IsNullOrEmpty(categoryFilter) && categoryFilter != "All Categories")
-                        cmd.Parameters.AddWithValue("@Category", categoryFilter);
+                        cmd.Parameters.Add("@Category", System.Data.SqlDbType.NVarChar, 100).Value = categoryFilter;
                     if (!string.IsNullOrEmpty(statusFilter) && statusFilter != "All Statuses")
-                        cmd.Parameters.AddWithValue("@Status", statusFilter);
+                        cmd.Parameters.Add("@Status", System.Data.SqlDbType.NVarChar, 100).Value = statusFilter;
 
                     conn.Open();
                     using (SqlDataReader reader = cmd.ExecuteReader())
@@ -55,6 +55,9 @@ namespace DataAccess
                                 Status = reader["Status"].ToString(),
                                 Priority = reader["Priority"].ToString(),
                                 DateCreated = Convert.ToDateTime(reader["DateCreated"]),
+                                UpdatedAt = reader["UpdatedAt"] == DBNull.Value
+                                    ? Convert.ToDateTime(reader["DateCreated"])
+                                    : Convert.ToDateTime(reader["UpdatedAt"]),
                                 LastModifiedBy = reader["LastModifiedBy"] == DBNull.Value ? "System" : reader["LastModifiedBy"].ToString()
                             });
                         }
@@ -68,19 +71,20 @@ namespace DataAccess
         {
             using (SqlConnection conn = DatabaseConnection.GetConnection())
             {
-                string query = @"INSERT INTO ServiceRequests (Title, Category, Location, Description, Status, Priority, DateCreated, LastModifiedBy) 
-                                 VALUES (@Title, @Category, @Location, @Description, @Status, @Priority, @DateCreated, @LastModifiedBy)";
+                string query = @"INSERT INTO ServiceRequests (Title, Category, Location, Description, Status, Priority, DateCreated, UpdatedAt, LastModifiedBy) 
+                                 VALUES (@Title, @Category, @Location, @Description, @Status, @Priority, @DateCreated, @UpdatedAt, @LastModifiedBy)";
 
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("@Title", request.Title);
-                    cmd.Parameters.AddWithValue("@Category", request.Category);
-                    cmd.Parameters.AddWithValue("@Location", request.Location);
-                    cmd.Parameters.AddWithValue("@Description", request.Description ?? "");
-                    cmd.Parameters.AddWithValue("@Status", request.Status);
-                    cmd.Parameters.AddWithValue("@Priority", request.Priority);
-                    cmd.Parameters.AddWithValue("@DateCreated", request.DateCreated);
-                    cmd.Parameters.AddWithValue("@LastModifiedBy", request.LastModifiedBy);
+                    cmd.Parameters.Add("@Title", System.Data.SqlDbType.NVarChar, 200).Value = request.Title;
+                    cmd.Parameters.Add("@Category", System.Data.SqlDbType.NVarChar, 100).Value = request.Category;
+                    cmd.Parameters.Add("@Location", System.Data.SqlDbType.NVarChar, 200).Value = request.Location;
+                    cmd.Parameters.Add("@Description", System.Data.SqlDbType.NVarChar, -1).Value = request.Description ?? "";
+                    cmd.Parameters.Add("@Status", System.Data.SqlDbType.NVarChar, 100).Value = request.Status;
+                    cmd.Parameters.Add("@Priority", System.Data.SqlDbType.NVarChar, 50).Value = request.Priority;
+                    cmd.Parameters.Add("@DateCreated", System.Data.SqlDbType.DateTime2).Value = request.DateCreated;
+                    cmd.Parameters.Add("@UpdatedAt", System.Data.SqlDbType.DateTime2).Value = request.UpdatedAt == default ? DateTime.UtcNow : request.UpdatedAt;
+                    cmd.Parameters.Add("@LastModifiedBy", System.Data.SqlDbType.NVarChar, 100).Value = request.LastModifiedBy ?? "System";
 
                     conn.Open();
                     return cmd.ExecuteNonQuery() > 0;
@@ -88,22 +92,86 @@ namespace DataAccess
             }
         }
 
-        public bool UpdateRequestStatus(int requestId, string newStatus, string modifiedBy)
+        public bool UpdateRequestStatus(
+            int requestId,
+            string expectedCurrentStatus,
+            string newStatus,
+            string modifiedBy,
+            DateTime expectedUpdatedAtUtc,
+            DateTime changedAtUtc)
         {
             using (SqlConnection conn = DatabaseConnection.GetConnection())
             {
-                string query = @"UPDATE ServiceRequests 
-                                 SET Status = @Status, LastModifiedBy = @LastModifiedBy 
-                                 WHERE RequestID = @RequestID";
-
-                using (SqlCommand cmd = new SqlCommand(query, conn))
+                conn.Open();
+                using (SqlTransaction tx = conn.BeginTransaction())
                 {
-                    cmd.Parameters.AddWithValue("@Status", newStatus);
-                    cmd.Parameters.AddWithValue("@LastModifiedBy", modifiedBy);
-                    cmd.Parameters.AddWithValue("@RequestID", requestId);
+                    try
+                    {
+                        string updateQuery = @"UPDATE ServiceRequests
+                                               SET Status = @NewStatus,
+                                                   LastModifiedBy = @LastModifiedBy,
+                                                   UpdatedAt = @ChangedAtUtc
+                                               WHERE RequestID = @RequestID
+                                                 AND Status = @ExpectedCurrentStatus
+                                                 AND UpdatedAt = @ExpectedUpdatedAtUtc";
 
-                    conn.Open();
-                    return cmd.ExecuteNonQuery() > 0;
+                        using (SqlCommand updateCmd = new SqlCommand(updateQuery, conn, tx))
+                        {
+                            updateCmd.Parameters.Add("@NewStatus", System.Data.SqlDbType.NVarChar, 100).Value = newStatus;
+                            updateCmd.Parameters.Add("@LastModifiedBy", System.Data.SqlDbType.NVarChar, 100).Value = modifiedBy ?? "System";
+                            updateCmd.Parameters.Add("@ChangedAtUtc", System.Data.SqlDbType.DateTime2).Value = changedAtUtc;
+                            updateCmd.Parameters.Add("@RequestID", System.Data.SqlDbType.Int).Value = requestId;
+                            updateCmd.Parameters.Add("@ExpectedCurrentStatus", System.Data.SqlDbType.NVarChar, 100).Value = expectedCurrentStatus;
+                            updateCmd.Parameters.Add("@ExpectedUpdatedAtUtc", System.Data.SqlDbType.DateTime2).Value = expectedUpdatedAtUtc;
+
+                            int updated = updateCmd.ExecuteNonQuery();
+                            if (updated == 0)
+                            {
+                                tx.Rollback();
+                                return false;
+                            }
+                        }
+
+                        string ensureAuditTableQuery = @"IF OBJECT_ID('dbo.ServiceRequestStatusAudit', 'U') IS NULL
+                                                         BEGIN
+                                                             CREATE TABLE dbo.ServiceRequestStatusAudit
+                                                             (
+                                                                 AuditId INT IDENTITY(1,1) PRIMARY KEY,
+                                                                 RequestID INT NOT NULL,
+                                                                 PreviousStatus NVARCHAR(100) NOT NULL,
+                                                                 NewStatus NVARCHAR(100) NOT NULL,
+                                                                 ChangedBy NVARCHAR(100) NOT NULL,
+                                                                 ChangedAtUtc DATETIME2 NOT NULL
+                                                             )
+                                                         END";
+
+                        using (SqlCommand ensureAuditCmd = new SqlCommand(ensureAuditTableQuery, conn, tx))
+                        {
+                            ensureAuditCmd.ExecuteNonQuery();
+                        }
+
+                        string insertAuditQuery = @"INSERT INTO dbo.ServiceRequestStatusAudit
+                                                    (RequestID, PreviousStatus, NewStatus, ChangedBy, ChangedAtUtc)
+                                                    VALUES (@RequestID, @PreviousStatus, @NewStatus, @ChangedBy, @ChangedAtUtc)";
+
+                        using (SqlCommand auditCmd = new SqlCommand(insertAuditQuery, conn, tx))
+                        {
+                            auditCmd.Parameters.Add("@RequestID", System.Data.SqlDbType.Int).Value = requestId;
+                            auditCmd.Parameters.Add("@PreviousStatus", System.Data.SqlDbType.NVarChar, 100).Value = expectedCurrentStatus;
+                            auditCmd.Parameters.Add("@NewStatus", System.Data.SqlDbType.NVarChar, 100).Value = newStatus;
+                            auditCmd.Parameters.Add("@ChangedBy", System.Data.SqlDbType.NVarChar, 100).Value = modifiedBy ?? "System";
+                            auditCmd.Parameters.Add("@ChangedAtUtc", System.Data.SqlDbType.DateTime2).Value = changedAtUtc;
+                            auditCmd.ExecuteNonQuery();
+                        }
+
+                        tx.Commit();
+                        return true;
+                    }
+                    catch
+                    {
+                        tx.Rollback();
+                        throw;
+                    }
                 }
             }
         }

@@ -26,7 +26,6 @@ namespace Presentation
         private GroupBox gbNew;
         private GroupBox gbActions;
         private Panel pnlMetricCards;
-        private Button btnExportCsv;
 
         private TextBox txtTitle;
         private TextBox txtLocation;
@@ -34,6 +33,9 @@ namespace Presentation
         private ComboBox cmbPriority;
         private Button btnSubmitRequest;
         private Button btnAdvanceStatus;
+        private Button btnNotifyRequest;
+        private Button btnEscalateRequest;
+        private Button btnTools;
 
         public MainDashboardForm(User user)
         {
@@ -77,36 +79,32 @@ namespace Presentation
             pnlMetricCards.Controls.AddRange(new Control[] { p1, p2, p3, p4 });
             this.Controls.Add(pnlMetricCards);
 
-            // Top filter panel
-            filterPanel = new Panel { Location = new Point(12, 60), Size = new Size(960, 46) };
+            // Top filter panel (inside Requests tab)
+            filterPanel = new Panel { Height = 58, Dock = DockStyle.Top, Padding = new Padding(12, 10, 12, 8) };
 
-            Label lblSearch = new Label { Text = "Search:", Location = new Point(6, 12), AutoSize = true };
-            txtSearch = new TextBox { Location = new Point(60, 8), Width = 220 };
+            Label lblSearch = new Label { Text = "Search:", Location = new Point(12, 16), AutoSize = true };
+            txtSearch = new TextBox { Location = new Point(66, 12), Width = 220 };
             txtSearch.TextChanged += (s, e) => RefreshDashboard();
             txtSearch.GotFocus += (s, e) => RemoveSearchPlaceholder();
             txtSearch.LostFocus += (s, e) => EnsureSearchPlaceholder();
 
-            Label lblFilterCat = new Label { Text = "Category:", Location = new Point(300, 12), AutoSize = true };
-            cmbFilterCategory = new ComboBox { Location = new Point(360, 8), Width = 170, DropDownStyle = ComboBoxStyle.DropDownList }; 
+            Label lblFilterCat = new Label { Text = "Category:", Location = new Point(306, 16), AutoSize = true };
+            cmbFilterCategory = new ComboBox { Location = new Point(370, 12), Width = 170, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbFilterCategory.SelectedIndexChanged += (s, e) => RefreshDashboard();
 
-            Label lblFilterStat = new Label { Text = "Status:", Location = new Point(540, 12), AutoSize = true };
-            cmbFilterStatus = new ComboBox { Location = new Point(590, 8), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblFilterStat = new Label { Text = "Status:", Location = new Point(560, 16), AutoSize = true };
+            cmbFilterStatus = new ComboBox { Location = new Point(610, 12), Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
             cmbFilterStatus.SelectedIndexChanged += (s, e) => RefreshDashboard();
 
-            Button btnClearFilters = new Button { Text = "Clear", Location = new Point(750, 6), Width = 70, Height = 28, FlatStyle = FlatStyle.System };
+            Button btnClearFilters = new Button { Text = "Clear", Location = new Point(770, 10), Width = 80, Height = 30, FlatStyle = FlatStyle.System };
             btnClearFilters.Click += (s, e) => { txtSearch.Clear(); cmbFilterCategory.SelectedIndex = 0; cmbFilterStatus.SelectedIndex = 0; };
-
-            // smaller top-right action buttons
-            // top-right action buttons removed per request
 
             filterPanel.Controls.AddRange(new Control[] { lblSearch, txtSearch, lblFilterCat, cmbFilterCategory, lblFilterStat, cmbFilterStatus, btnClearFilters });
 
             // Grid
             dgvRequests = new DataGridView
             {
-                Location = new Point(12, 110),
-                Size = new Size(960, 340),
+                Dock = DockStyle.Fill,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
                 MultiSelect = false,
                 ReadOnly = true,
@@ -118,48 +116,64 @@ namespace Presentation
             dgvRequests.CellDoubleClick += DgvRequests_CellDoubleClick;
             dgvRequests.CellMouseEnter += DgvRequests_CellMouseEnter;
             dgvRequests.CellMouseLeave += DgvRequests_CellMouseLeave;
+            dgvRequests.SelectionChanged += (s, e) => UpdateActionButtonStates();
             dgvRequests.MouseLeave += (s, e) => HideHoverPreview();
-            // Improve readability for demo
             dgvRequests.Font = new Font("Segoe UI", 10F);
             dgvRequests.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
 
             // Form Entry Group
-            gbNew = new GroupBox { Text = "Submit New Request", Location = new Point(12, 462), Size = new Size(640, 140) };
+            gbNew = new GroupBox { Text = "Create Service Request", Location = new Point(14, 14), Size = new Size(920, 180), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
 
-            Label lblAddTitle = new Label { Text = "Title:", Location = new Point(12, 28), AutoSize = true };
-            txtTitle = new TextBox { Location = new Point(60, 24), Width = 260 };
+            Label lblAddTitle = new Label { Text = "Title:", Location = new Point(16, 36), AutoSize = true };
+            txtTitle = new TextBox { Location = new Point(78, 32), Width = 340 };
 
-            Label lblAddCat = new Label { Text = "Category:", Location = new Point(340, 28), AutoSize = true };
-            cmbCategory = new ComboBox { Location = new Point(405, 24), Width = 200, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblAddCat = new Label { Text = "Category:", Location = new Point(450, 36), AutoSize = true };
+            cmbCategory = new ComboBox { Location = new Point(522, 32), Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
 
-            Label lblAddLoc = new Label { Text = "Location:", Location = new Point(12, 62), AutoSize = true };
-            txtLocation = new TextBox { Location = new Point(70, 58), Width = 250 };
+            Label lblAddLoc = new Label { Text = "Location:", Location = new Point(16, 78), AutoSize = true };
+            txtLocation = new TextBox { Location = new Point(78, 74), Width = 340 };
 
-            Label lblAddPrio = new Label { Text = "Priority:", Location = new Point(340, 62), AutoSize = true };
-            cmbPriority = new ComboBox { Location = new Point(405, 58), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
+            Label lblAddPrio = new Label { Text = "Priority:", Location = new Point(450, 78), AutoSize = true };
+            cmbPriority = new ComboBox { Location = new Point(522, 74), Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
 
-            btnSubmitRequest = new Button { Text = "Submit Request", Location = new Point(12, 95), Width = 150, Height = 30, BackColor = Color.FromArgb(30, 144, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            btnSubmitRequest = new Button { Text = "Submit Request", Location = new Point(16, 122), Width = 180, Height = 36, BackColor = Color.FromArgb(30, 144, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnSubmitRequest.Click += BtnSubmitRequest_Click;
 
             gbNew.Controls.AddRange(new Control[] { lblAddTitle, txtTitle, lblAddCat, cmbCategory, lblAddLoc, txtLocation, lblAddPrio, cmbPriority, btnSubmitRequest });
 
-            // Actions Group
-            gbActions = new GroupBox { Text = "Actions", Location = new Point(664, 462), Size = new Size(308, 140) };
-            btnAdvanceStatus = new Button { Text = "Update Status", Location = new Point(12, 24), Width = 140, Height = 32, BackColor = Color.FromArgb(255,140,0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            // Actions Group (kept at bottom of Request Board for quick operations)
+            gbActions = new GroupBox { Text = "Quick Actions", Height = 112, Dock = DockStyle.Bottom, Padding = new Padding(10) };
+            btnAdvanceStatus = new Button { Text = "Update Status", Location = new Point(14, 30), Width = 200, Height = 40, BackColor = Color.FromArgb(255, 140, 0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnAdvanceStatus.Click += BtnAdvanceStatus_Click;
-            Button btnNotifyNow = new Button { Text = "Notify Selected", Location = new Point(12, 64), Width = 140, Height = 32, BackColor = Color.FromArgb(30,144,255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnNotifyNow.Click += (s, e) => NotifySelected();
-            Button btnEscalateNow = new Button { Text = "Escalate Selected", Location = new Point(158, 24), Width = 140, Height = 32, BackColor = Color.FromArgb(255,140,0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnEscalateNow.Click += (s, e) => EscalateSelected();
-            Button btnSeed = new Button { Text = "Seed Sample Data", Location = new Point(158, 64), Width = 140, Height = 32, FlatStyle = FlatStyle.System };
-            btnSeed.Click += (s, e) => SeedSampleData();
-            Button btnViewLogs = new Button { Text = "View Logs", Location = new Point(12, 100), Width = 286, Height = 28, FlatStyle = FlatStyle.System };
-            btnViewLogs.Click += (s, e) => ShowLogViewer();
+            btnNotifyRequest = new Button { Text = "Notify Selected", Location = new Point(224, 30), Width = 200, Height = 40, BackColor = Color.FromArgb(30, 144, 255), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            btnNotifyRequest.Click += (s, e) => NotifySelected();
+            btnEscalateRequest = new Button { Text = "Escalate Selected", Location = new Point(434, 30), Width = 200, Height = 40, BackColor = Color.FromArgb(255, 140, 0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            btnEscalateRequest.Click += (s, e) => EscalateSelected();
+            btnTools = new Button { Text = "Open Tools", Location = new Point(644, 30), Width = 240, Height = 40, FlatStyle = FlatStyle.System };
+            btnTools.Click += (s, e) => OpenToolsDialog();
 
-            gbActions.Controls.AddRange(new Control[] { btnAdvanceStatus, btnNotifyNow, btnEscalateNow, btnSeed, btnViewLogs, btnExportCsv });
+            gbActions.Controls.AddRange(new Control[] { btnAdvanceStatus, btnNotifyRequest, btnEscalateRequest, btnTools });
+
+            // Dashboard tabs
+            TabControl tabs = new TabControl
+            {
+                Location = new Point(12, 66),
+                Size = new Size(960, 534),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            };
+
+            TabPage tabBoard = new TabPage("Request Board") { BackColor = Color.White };
+            TabPage tabCreate = new TabPage("Create Request") { BackColor = Color.White };
+
+            tabBoard.Controls.Add(dgvRequests);
+            tabBoard.Controls.Add(gbActions);
+            tabBoard.Controls.Add(filterPanel);
+            tabCreate.Controls.Add(gbNew);
+            tabs.TabPages.AddRange(new[] { tabBoard, tabCreate });
 
             // Add to form
-            this.Controls.AddRange(new Control[] { lblUserInfo, lblStats, filterPanel, dgvRequests, gbNew, gbActions });
+            this.Controls.Add(tabs);
 
             // Context menu and tooltips
             InitializeGridContextMenu();
@@ -205,6 +219,14 @@ namespace Presentation
                 txtSearch.ForeColor = Color.Gray;
                 txtSearch.Text = "Search...";
             }
+        }
+
+        private void UpdateActionButtonStates()
+        {
+            bool hasSelection = dgvRequests != null && dgvRequests.SelectedRows.Count > 0;
+            if (btnAdvanceStatus != null) btnAdvanceStatus.Enabled = hasSelection;
+            if (btnNotifyRequest != null) btnNotifyRequest.Enabled = hasSelection;
+            if (btnEscalateRequest != null) btnEscalateRequest.Enabled = hasSelection;
         }
 
         private void MainDashboardForm_Load(object sender, EventArgs e)
@@ -262,6 +284,7 @@ namespace Presentation
                 dgvRequests.DataSource = requests;
 
                 FormatGrid();
+                UpdateActionButtonStates();
 
                 var (total, pending, inProgress, resolved) = _requestService.GetDashboardMetrics();
                 lblStats.Text = $"CivicConnect Metrics: {total} Total Requests | {pending} Pending Triage | {inProgress} In Progress | {resolved} Resolved/Closed";
@@ -281,24 +304,29 @@ namespace Presentation
             if (dgvRequests.Columns["RequestID"] != null) dgvRequests.Columns["RequestID"].Visible = false;
             if (dgvRequests.Columns["Description"] != null) dgvRequests.Columns["Description"].Visible = false;
 
-            dgvRequests.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dgvRequests.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            dgvRequests.ScrollBars = ScrollBars.Both;
             dgvRequests.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 248, 250);
             dgvRequests.EnableHeadersVisualStyles = false;
             dgvRequests.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(30, 144, 255);
             dgvRequests.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgvRequests.ColumnHeadersDefaultCellStyle.Font = new Font(dgvRequests.Font, FontStyle.Bold);
 
+            // Define explicit widths for readability
+            if (dgvRequests.Columns["Title"] != null) dgvRequests.Columns["Title"].Width = 220;
+            if (dgvRequests.Columns["Category"] != null) dgvRequests.Columns["Category"].Width = 130;
+            if (dgvRequests.Columns["Location"] != null) dgvRequests.Columns["Location"].Width = 220;
+            if (dgvRequests.Columns["Status"] != null) dgvRequests.Columns["Status"].Width = 120;
+            if (dgvRequests.Columns["Priority"] != null) dgvRequests.Columns["Priority"].Width = 90;
+            if (dgvRequests.Columns["LastModifiedBy"] != null) dgvRequests.Columns["LastModifiedBy"].Width = 170;
+
             // Format date column if present
             if (dgvRequests.Columns["DateCreated"] != null)
             {
                 dgvRequests.Columns["DateCreated"].DefaultCellStyle.Format = "g";
                 dgvRequests.Columns["DateCreated"].HeaderText = "Created";
-                dgvRequests.Columns["DateCreated"].Width = 140;
+                dgvRequests.Columns["DateCreated"].Width = 150;
             }
-
-            // Adjust priority column visuals
-            if (dgvRequests.Columns["Priority"] != null)
-                dgvRequests.Columns["Priority"].Width = 90;
 
             // Status Visual Indicator Highlight
             foreach (DataGridViewRow row in dgvRequests.Rows)
@@ -806,6 +834,24 @@ namespace Presentation
             catch (Exception ex)
             {
                 MessageBox.Show("Could not open log viewer: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void OpenToolsDialog()
+        {
+            try
+            {
+                using (var tools = new DashboardToolsForm(
+                    seedAction: SeedSampleData,
+                    exportAction: ExportGridToCsv,
+                    viewLogsAction: ShowLogViewer))
+                {
+                    tools.ShowDialog(this);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not open tools: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
     }

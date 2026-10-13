@@ -33,7 +33,13 @@ namespace BusinessLogic.Escalation
 
             try
             {
-                return _repo.UpdateRequestStatus(request.RequestID, _escalatedStatus, "System-TimeEscalation");
+                return _repo.UpdateRequestStatus(
+                    request.RequestID,
+                    request.Status,
+                    _escalatedStatus,
+                    "System-TimeEscalation",
+                    request.UpdatedAt,
+                    DateTime.UtcNow);
             }
             catch (Exception ex)
             {

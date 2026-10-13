@@ -29,9 +29,8 @@ namespace Presentation
             this.Size = new Size(1000, 700);
             this.StartPosition = FormStartPosition.CenterParent;
 
+            BackColor = Color.FromArgb(245, 247, 250);
             InitializeComponents();
-            // Apply current theme
-            Theme.ApplyTheme(this, Theme.IsDark);
 
             _autoRefreshTimer = new System.Windows.Forms.Timer { Interval = 3000 };
             _autoRefreshTimer.Tick += (s, e) => { if (chkAutoRefresh.Checked) LoadLog(); };
@@ -40,34 +39,34 @@ namespace Presentation
         private void InitializeComponents()
         {
             // Top panel with controls
-            var top = new Panel { Dock = DockStyle.Top, Height = 38 }; 
+            var top = new Panel { Dock = DockStyle.Top, Height = 42, BackColor = Color.White };
 
-            btnRefresh = new Button { Text = "Refresh", Width = 80, Location = new Point(8, 6) };
+            btnRefresh = new Button { Text = "Refresh", Width = 90, Height = 30, Location = new Point(8, 6), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(30,144,255), ForeColor = Color.White };
             btnRefresh.Click += (s, e) => LoadLog();
 
-            btnSaveAs = new Button { Text = "Save As...", Width = 80, Location = new Point(96, 6) };
+            btnSaveAs = new Button { Text = "Save As...", Width = 90, Height = 30, Location = new Point(104, 6), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(30,144,255), ForeColor = Color.White };
             btnSaveAs.Click += (s, e) => SaveAs();
 
-            chkAutoRefresh = new CheckBox { Text = "Auto-refresh", Location = new Point(188, 9), AutoSize = true };
+            chkAutoRefresh = new CheckBox { Text = "Auto-refresh", Location = new Point(206, 10), AutoSize = true, Font = new Font("Segoe UI", 9) };
 
-            txtSearch = new TextBox { PlaceholderText = "Search text...", Location = new Point(300, 6), Width = 240 };
+            txtSearch = new TextBox { PlaceholderText = "Search logs...", Location = new Point(320, 8), Width = 210, Font = new Font("Segoe UI", 9) };
             txtSearch.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) ApplyFilters(); };
 
-            cmbLevelFilter = new ComboBox { Location = new Point(548, 6), Width = 120, DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbLevelFilter = new ComboBox { Location = new Point(536, 8), Width = 110, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 9) };
             cmbLevelFilter.Items.AddRange(new string[] { "All", "INFO", "WARN", "ERROR" });
             cmbLevelFilter.SelectedIndex = 0;
             cmbLevelFilter.SelectedIndexChanged += (s, e) => ApplyFilters();
 
-            var btnApply = new Button { Text = "Apply", Width = 60, Location = new Point(678, 6) };
+            var btnApply = new Button { Text = "Apply", Width = 70, Height = 30, Location = new Point(652, 6), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(255,140,0), ForeColor = Color.White };
             btnApply.Click += (s, e) => ApplyFilters();
 
-            btnClose = new Button { Text = "Close", Width = 80, Location = new Point(760, 6) };
+            btnClose = new Button { Text = "Close", Width = 90, Height = 30, Location = new Point(728, 6), FlatStyle = FlatStyle.Flat, BackColor = Color.Gainsboro, ForeColor = Color.Black };
             btnClose.Click += (s, e) => this.Close();
 
             top.Controls.AddRange(new Control[] { btnRefresh, btnSaveAs, chkAutoRefresh, txtSearch, cmbLevelFilter, btnApply, btnClose });
 
             // Main ListView
-            lv = new ListView { Dock = DockStyle.Top, Height = 420, View = View.Details, FullRowSelect = true }; 
+            lv = new ListView { Dock = DockStyle.Top, Height = 420, View = View.Details, FullRowSelect = true, Font = new Font("Segoe UI", 9) };
             lv.Columns.Add("Timestamp", 160);
             lv.Columns.Add("Level", 80);
             lv.Columns.Add("Message", 700);
@@ -75,7 +74,7 @@ namespace Presentation
             lv.SelectedIndexChanged += Lv_SelectedIndexChanged;
 
             // Details box
-            txtDetails = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, Font = new Font("Consolas", 10F) };
+            txtDetails = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, BackColor = Color.White, Font = new Font("Consolas", 10F) };
 
             this.Controls.Add(txtDetails);
             this.Controls.Add(lv);
@@ -143,6 +142,7 @@ namespace Presentation
 
                 lv.Items.AddRange(items.ToArray());
                 if (lv.Items.Count > 0) lv.Items[lv.Items.Count - 1].EnsureVisible();
+                Text = $"Application Log Viewer - {lv.Items.Count} item(s)";
             }
             catch (Exception ex)
             {
