@@ -32,7 +32,13 @@ namespace BusinessLogic.Escalation
             try
             {
                 // Update status via repository and mark last modified by system.
-                return _repo.UpdateRequestStatus(request.RequestID, _escalatedStatus, "System-Escalation");
+                return _repo.UpdateRequestStatus(
+                    request.RequestID,
+                    request.Status,
+                    _escalatedStatus,
+                    "System-Escalation",
+                    request.UpdatedAt,
+                    DateTime.UtcNow);
             }
             catch (Exception ex)
             {

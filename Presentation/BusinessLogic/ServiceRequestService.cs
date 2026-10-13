@@ -9,6 +9,22 @@ namespace BusinessLogic
 {
     public class ServiceRequestService
     {
+        private static readonly HashSet<string> AllowedCategories = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Pothole",
+            "Water Outage",
+            "Electricity",
+            "Waste"
+        };
+
+        private static readonly HashSet<string> AllowedPriorities = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Low",
+            "Medium",
+            "High",
+            "Critical"
+        };
+
         private readonly IServiceRequestRepository _requestRepository;
         private readonly IDomainEventPublisher _eventPublisher;
 
@@ -29,31 +45,51 @@ namespace BusinessLogic
         public ServiceRequest CreateNewRequest(string title, string category, string location, string description, string priority, string currentUser)
         {
             if (string.IsNullOrWhiteSpace(title))
-                throw new ArgumentException("Service request title is required.");
+            {
+                ErrorHandler.LogWarning($"CreateNewRequest rejected: empty title (user={currentUser})");
+                throw new ServiceRequestDomainException("Service request title is required.");
+            }
 
-            if (string.IsNullOrWhiteSpace(category) || category == "Select Category")
-                throw new ArgumentException("Please select a valid service category.");
+            if (string.IsNullOrWhiteSpace(category) || category == "Select Category" || !AllowedCategories.Contains(category.Trim()))
+            {
+                ErrorHandler.LogWarning($"CreateNewRequest rejected: invalid category '{category}' (user={currentUser})");
+                throw new ServiceRequestDomainException("Please select a valid service category.");
+            }
 
             if (string.IsNullOrWhiteSpace(location))
-                throw new ArgumentException("Issue location is required.");
+            {
+                ErrorHandler.LogWarning($"CreateNewRequest rejected: empty location (user={currentUser})");
+                throw new ServiceRequestDomainException("Issue location is required.");
+            }
 
+            string normalizedPriority = string.IsNullOrWhiteSpace(priority) ? "Medium" : priority.Trim();
+            if (!AllowedPriorities.Contains(normalizedPriority))
+            {
+                ErrorHandler.LogWarning($"CreateNewRequest rejected: invalid priority '{priority}' (user={currentUser})");
+                throw new ServiceRequestDomainException("Invalid priority selected.");
+            }
+
+            DateTime nowUtc = DateTime.UtcNow;
             ServiceRequest request = new ServiceRequest
             {
                 Title = title.Trim(),
                 Category = category.Trim(),
                 Location = location.Trim(),
                 Description = description ?? "",
-                Priority = string.IsNullOrWhiteSpace(priority) ? "Medium" : priority,
-                Status = "Submitted", // Default lifecycle state
-                DateCreated = DateTime.Now,
-                LastModifiedBy = currentUser ?? "System"
+                Priority = normalizedPriority,
+                Status = "Submitted",
+                DateCreated = nowUtc,
+                UpdatedAt = nowUtc,
+                LastModifiedBy = string.IsNullOrWhiteSpace(currentUser) ? "System" : currentUser.Trim()
             };
 
             bool added = _requestRepository.AddRequest(request);
-            if (!added) return null;
+            if (!added)
+            {
+                ErrorHandler.LogError($"CreateNewRequest repository insert failed (user={currentUser}, title={request.Title})");
+                return null;
+            }
 
-            // Attempt to locate the newly created request in the repository.
-            // We use a best-effort strategy: match by title and location and take the most recently created.
             var all = _requestRepository.GetAllRequests();
             ServiceRequest created = all.FindLast(r => r.Title == request.Title && r.Location == request.Location);
             return created;
@@ -71,38 +107,61 @@ namespace BusinessLogic
         {
             if (requestId <= 0)
             {
-                ErrorHandler.LogWarning($"AdvanceRequestStatus called with invalid requestId={requestId} (user={currentUser})");
-                throw new ArgumentException("Invalid service request selected.");
+                ErrorHandler.LogWarning($"AdvanceRequestStatus rejected: invalid requestId={requestId} (user={currentUser})");
+                throw new ServiceRequestDomainException("Invalid service request selected.");
             }
 
-            // Verify the request exists
             var existing = GetRequestById(requestId);
             if (existing == null)
             {
-                ErrorHandler.LogWarning($"AdvanceRequestStatus: request not found id={requestId} (user={currentUser})");
-                throw new ArgumentException("Service request not found.");
+                ErrorHandler.LogWarning($"AdvanceRequestStatus rejected: request not found id={requestId} (user={currentUser})");
+                throw new ServiceRequestDomainException("Service request not found.");
             }
 
-            // Enforce valid lifecycle state progression rules
-            if (!IsValidStateTransition(currentStatus, targetStatus))
+            string expectedCurrent = existing.Status;
+            if (!string.Equals(currentStatus, expectedCurrent, StringComparison.OrdinalIgnoreCase))
             {
-                ErrorHandler.LogWarning($"Invalid state transition attempted for requestId={requestId} from '{currentStatus}' to '{targetStatus}' (user={currentUser})");
-                throw new InvalidOperationException($"Invalid status transition! Cannot change request state directly from '{currentStatus}' to '{targetStatus}'.");
+                ErrorHandler.LogWarning($"AdvanceRequestStatus stale UI state for requestId={requestId}: UI='{currentStatus}', DB='{expectedCurrent}'");
+                throw new ServiceRequestDomainException("Request status changed by another operator. Please refresh and try again.");
             }
+
+            if (!IsValidStateTransition(expectedCurrent, targetStatus))
+            {
+                ErrorHandler.LogWarning($"Invalid transition attempted requestId={requestId} from '{expectedCurrent}' to '{targetStatus}' (user={currentUser})");
+                throw new ServiceRequestDomainException($"Invalid status transition from '{expectedCurrent}' to '{targetStatus}'. Allowed next step only.");
+            }
+
+            DateTime changedAtUtc = DateTime.UtcNow;
+            string actor = string.IsNullOrWhiteSpace(currentUser) ? "System" : currentUser.Trim();
 
             try
             {
-                bool result = _requestRepository.UpdateRequestStatus(requestId, targetStatus, currentUser ?? "System");
+                bool result = _requestRepository.UpdateRequestStatus(
+                    requestId,
+                    expectedCurrent,
+                    targetStatus,
+                    actor,
+                    existing.UpdatedAt,
+                    changedAtUtc);
+
                 if (!result)
-                    ErrorHandler.LogError($"AdvanceRequestStatus failed to update repository for requestId={requestId} (user={currentUser})");
-                else
-                    _eventPublisher.Publish(new ServiceRequestStatusChangedEvent(
-                        requestId,
-                        currentStatus,
-                        targetStatus,
-                        currentUser ?? "System",
-                        DateTime.UtcNow));
-                return result;
+                {
+                    ErrorHandler.LogWarning($"AdvanceRequestStatus concurrency conflict for requestId={requestId}");
+                    throw new ServiceRequestDomainException("This request was updated by another operator. Refresh and retry.");
+                }
+
+                _eventPublisher.Publish(new ServiceRequestStatusChangedEvent(
+                    requestId,
+                    expectedCurrent,
+                    targetStatus,
+                    actor,
+                    changedAtUtc));
+
+                return true;
+            }
+            catch (ServiceRequestDomainException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -113,17 +172,31 @@ namespace BusinessLogic
 
         private bool IsValidStateTransition(string current, string target)
         {
-            if (current == target) return false;
+            if (string.IsNullOrWhiteSpace(current) || string.IsNullOrWhiteSpace(target)) return false;
+            if (string.Equals(current, target, StringComparison.OrdinalIgnoreCase)) return false;
 
-            // Define Business State Transition Rules
+            // Strict sequential lifecycle rules: Submitted -> In Progress -> Resolved -> Closed
             return current switch
             {
-                "Submitted" => target == "In Progress" || target == "Closed",
-                "In Progress" => target == "Resolved",
-                "Resolved" => target == "Closed" || target == "In Progress", // Can reopen if unresolved
-                "Closed" => false, // Terminal state
+                "Submitted" => string.Equals(target, "In Progress", StringComparison.OrdinalIgnoreCase),
+                "In Progress" => string.Equals(target, "Resolved", StringComparison.OrdinalIgnoreCase),
+                "Resolved" => string.Equals(target, "Closed", StringComparison.OrdinalIgnoreCase),
+                "Closed" => false,
                 _ => false
             };
+        }
+
+        // Expose valid next statuses for the UI to present choices
+        public List<string> GetValidNextStatuses(string current)
+        {
+            var candidates = new List<string> { "Submitted", "In Progress", "Resolved", "Closed" };
+            var result = new List<string>();
+            foreach (var c in candidates)
+            {
+                if (IsValidStateTransition(current, c))
+                    result.Add(c);
+            }
+            return result;
         }
 
         // Dynamic Aggregation Metrics for Dashboard Header

@@ -4,6 +4,6 @@ namespace DataAccess
 {
     public interface IUserRepository
     {
-        User GetUserByCredentials(string username, string password);
+        UserAuthRecord GetUserAuthRecord(string username);
     }
 }
