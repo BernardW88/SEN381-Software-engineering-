@@ -23,25 +23,76 @@ namespace Presentation
 
         private void BuildLoginFormUI()
         {
-            this.Text = "City Makerspace - Login";
-            this.Size = new Size(380, 260);
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
+            Text = "CivicConnect - Sign In";
+            Size = new Size(460, 360);
+            StartPosition = FormStartPosition.CenterScreen;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            BackColor = Color.FromArgb(245, 247, 250);
 
-            Label lblTitle = new Label { Text = "Makerspace Portal Login", Font = new Font("Segoe UI", 12, FontStyle.Bold), Location = new Point(30, 20), AutoSize = true };
-            Label lblUser = new Label { Text = "Username:", Location = new Point(30, 60), AutoSize = true };
-            txtUsername = new TextBox { Location = new Point(120, 57), Width = 200, Text = "admin" };
+            Panel card = new Panel
+            {
+                Location = new Point(40, 30),
+                Size = new Size(360, 270),
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle
+            };
 
-            Label lblPass = new Label { Text = "Password:", Location = new Point(30, 100), AutoSize = true };
-            txtPassword = new TextBox { Location = new Point(120, 97), Width = 200, PasswordChar = '*', Text = "admin123" };
+            Label lblTitle = new Label
+            {
+                Text = "Welcome to CivicConnect",
+                Font = new Font("Segoe UI", 14, FontStyle.Bold),
+                ForeColor = Color.FromArgb(30, 144, 255),
+                Location = new Point(24, 20),
+                AutoSize = true
+            };
 
-            btnLogin = new Button { Text = "Login", Location = new Point(120, 135), Width = 200, Height = 32, BackColor = Color.DodgerBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+            Label lblSubtitle = new Label
+            {
+                Text = "Sign in to manage community service requests",
+                Font = new Font("Segoe UI", 9),
+                ForeColor = Color.FromArgb(90, 90, 90),
+                Location = new Point(24, 50),
+                AutoSize = true
+            };
+
+            Label lblUser = new Label { Text = "Username", Location = new Point(24, 88), AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+            txtUsername = new TextBox { Location = new Point(24, 108), Width = 308, Font = new Font("Segoe UI", 10), BorderStyle = BorderStyle.FixedSingle };
+
+            Label lblPass = new Label { Text = "Password", Location = new Point(24, 144), AutoSize = true, Font = new Font("Segoe UI", 9, FontStyle.Bold) };
+            txtPassword = new TextBox { Location = new Point(24, 164), Width = 308, Font = new Font("Segoe UI", 10), BorderStyle = BorderStyle.FixedSingle, PasswordChar = '*' };
+
+            btnLogin = new Button
+            {
+                Text = "Sign In",
+                Location = new Point(24, 204),
+                Width = 308,
+                Height = 36,
+                BackColor = Color.FromArgb(30, 144, 255),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+            btnLogin.FlatAppearance.BorderSize = 0;
             btnLogin.Click += BtnLogin_Click;
 
-            lblStatus = new Label { Location = new Point(30, 180), AutoSize = true, ForeColor = Color.Red };
+            lblStatus = new Label
+            {
+                Location = new Point(24, 246),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(192, 57, 43),
+                Font = new Font("Segoe UI", 9)
+            };
 
-            this.Controls.AddRange(new Control[] { lblTitle, lblUser, txtUsername, lblPass, txtPassword, btnLogin, lblStatus });
+            AcceptButton = btnLogin;
+
+            card.Controls.AddRange(new Control[]
+            {
+                lblTitle, lblSubtitle, lblUser, txtUsername, lblPass, txtPassword, btnLogin, lblStatus
+            });
+
+            Controls.Add(card);
         }
 
         private void BtnLogin_Click(object sender, EventArgs e)
@@ -49,16 +100,33 @@ namespace Presentation
             try
             {
                 lblStatus.Text = "";
-                User loggedInUser = _userService.AuthenticateUser(txtUsername.Text, txtPassword.Text);
+
+                string username = txtUsername.Text?.Trim();
+                string password = txtPassword.Text ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
+                {
+                    lblStatus.Text = "Please enter username and password.";
+                    return;
+                }
+
+                btnLogin.Enabled = false;
+                User loggedInUser = _userService.AuthenticateUser(username, password);
 
                 MainDashboardForm dashboard = new MainDashboardForm(loggedInUser);
-                this.Hide();
+                Hide();
                 dashboard.ShowDialog();
-                this.Close();
+                Close();
             }
-            catch (Exception ex)
+            catch
             {
-                lblStatus.Text = ex.Message;
+                lblStatus.Text = "Invalid credentials. Please try again.";
+                txtPassword.Clear();
+                txtPassword.Focus();
+            }
+            finally
+            {
+                btnLogin.Enabled = true;
             }
         }
     }

@@ -12,6 +12,7 @@ namespace Models
         public string Status { get; set; } // Submitted, In Progress, Resolved, Closed
         public string Priority { get; set; } // Low, Medium, High, Critical
         public DateTime DateCreated { get; set; }
+        public DateTime UpdatedAt { get; set; } // Used for optimistic concurrency checks
         public string LastModifiedBy { get; set; }
     }
 }
